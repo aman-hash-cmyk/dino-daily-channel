@@ -5,7 +5,7 @@ FPS=12; DURATION=36; END=FPS*DURATION
 bpy.ops.object.select_all(action='SELECT'); bpy.ops.object.delete(use_global=False)
 for d in bpy.data.materials: bpy.data.materials.remove(d)
 scene=bpy.context.scene
-scene.render.engine='CYCLES' if False else 'BLENDER_EEVEE_NEXT'
+scene.render.engine = 'BLENDER_EEVEE'
 scene.eevee.taa_render_samples=8
 scene.render.resolution_x=1280; scene.render.resolution_y=720; scene.render.resolution_percentage=100
 scene.render.fps=FPS; scene.frame_start=1; scene.frame_end=END
