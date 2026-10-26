@@ -4,7 +4,7 @@ name: Dino 3D episode
 on:
   workflow_dispatch:
   schedule:
-    - cron: "30 10 * * *" # 4:00 PM India time
+    - cron: "30 10 * * *"
 
 permissions:
   contents: read
@@ -15,8 +15,8 @@ concurrency:
 
 jobs:
   create-and-upload:
-    runs-on: ubuntu-latest
-    timeout-minutes: 120
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
 
     steps:
       - name: Check out repository
@@ -31,7 +31,7 @@ jobs:
       - name: Install Blender and FFmpeg
         run: |
           sudo apt-get update
-          sudo apt-get install -y blender ffmpeg fonts-dejavu-core
+          sudo apt-get install -y --no-install-recommends blender ffmpeg fonts-dejavu-core
 
       - name: Install Python packages
         run: |
@@ -54,21 +54,22 @@ jobs:
           CONFIG="${MODEL}.json"
 
           if [ ! -s "$MODEL" ]; then
-            curl -fL --retry 3 "$BASE/en_US-lessac-medium.onnx" -o "$MODEL"
+            curl -fL --retry 3 --connect-timeout 20 "$BASE/en_US-lessac-medium.onnx" -o "$MODEL"
           fi
 
           if [ ! -s "$CONFIG" ]; then
-            curl -fL --retry 3 "$BASE/en_US-lessac-medium.onnx.json" -o "$CONFIG"
+            curl -fL --retry 3 --connect-timeout 20 "$BASE/en_US-lessac-medium.onnx.json" -o "$CONFIG"
           fi
 
-          test -s "$MODEL" && test -s "$CONFIG"
+          test -s "$MODEL"
+          test -s "$CONFIG"
           echo "PIPER_VOICE=$GITHUB_WORKSPACE/$MODEL" >> "$GITHUB_ENV"
           echo "PIPER_CONFIG=$GITHUB_WORKSPACE/$CONFIG" >> "$GITHUB_ENV"
 
-      - name: Verify tools and voice
+      - name: Verify tools
         run: |
-          command -v blender
-          command -v ffmpeg
+          blender --version | head -n 2
+          ffmpeg -version | head -n 1
           command -v piper
           test -s "$PIPER_VOICE"
           test -s "$PIPER_CONFIG"
@@ -76,7 +77,7 @@ jobs:
       - name: Generate animated episode
         run: python make_video.py
 
-      - name: Save generated video even if upload fails
+      - name: Save video for preview
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -85,7 +86,7 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
-      - name: Upload to YouTube as private
+      - name: Upload to YouTube privately
         env:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
