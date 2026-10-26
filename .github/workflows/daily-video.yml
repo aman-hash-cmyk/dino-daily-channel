@@ -10,35 +10,83 @@ permissions:
   contents: read
 
 concurrency:
-  group: dino-pipeline
+  group: dino-daily-video
   cancel-in-progress: false
 
 jobs:
-  make-and-upload:
+  create-and-upload:
     runs-on: ubuntu-latest
     timeout-minutes: 60
 
     steps:
-      - name: Checkout repository
+      - name: Check out repository
         uses: actions/checkout@v4
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: pip
 
-      - name: Install system dependencies
+      - name: Install system tools
         run: |
           sudo apt-get update
           sudo apt-get install -y ffmpeg fonts-dejavu-core
 
-      - name: Install Python dependencies
-        run: pip install -r requirements.txt
+      - name: Install Python packages
+        run: python -m pip install --upgrade pip && python -m pip install -r requirements.txt
 
-      - name: Generate video and upload to YouTube
+      - name: Cache Piper voice
+        uses: actions/cache@v4
+        with:
+          path: voices
+          key: piper-en-us-lessac-medium-v1
+
+      - name: Download and verify Piper voice
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p voices
+
+          MODEL="voices/en_US-lessac-medium.onnx"
+          CONFIG="${MODEL}.json"
+          BASE_URL="https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/lessac/medium"
+
+          if [ ! -s "$MODEL" ]; then
+            curl -fL --retry 3 --retry-delay 2 \
+              "$BASE_URL/en_US-lessac-medium.onnx" \
+              -o "$MODEL"
+          fi
+
+          if [ ! -s "$CONFIG" ]; then
+            curl -fL --retry 3 --retry-delay 2 \
+              "$BASE_URL/en_US-lessac-medium.onnx.json" \
+              -o "$CONFIG"
+          fi
+
+          test -s "$MODEL"
+          test -s "$CONFIG"
+
+          echo "PIPER_VOICE=$GITHUB_WORKSPACE/$MODEL" >> "$GITHUB_ENV"
+          echo "PIPER_CONFIG=$GITHUB_WORKSPACE/$CONFIG" >> "$GITHUB_ENV"
+
+      - name: Verify voice and tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v piper
+          command -v ffmpeg
+          test -s "$PIPER_VOICE"
+          test -s "$PIPER_CONFIG"
+          echo "Voice model and required tools are ready."
+
+      - name: Generate video and thumbnail
         run: python make_video.py
+
+      - name: Upload to YouTube
         env:
           YT_CLIENT_ID: ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
           UPLOAD_PRIVACY: private
+        run: python upload_youtube.py
