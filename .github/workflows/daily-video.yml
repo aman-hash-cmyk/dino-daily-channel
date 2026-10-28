@@ -1,5 +1,5 @@
 
-name: Dino 3D episode
+name: Dino Friends Storytime
 
 on:
   workflow_dispatch:
@@ -16,7 +16,7 @@ concurrency:
 jobs:
   create-and-upload:
     runs-on: ubuntu-24.04
-    timeout-minutes: 90
+    timeout-minutes: 120
 
     steps:
       - name: Check out repository
@@ -28,12 +28,10 @@ jobs:
           python-version: "3.11"
           cache: pip
 
-     
-      - name: Install Blender and FFmpeg
+      - name: Install Blender, FFmpeg and graphics libraries
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            blender ffmpeg fonts-dejavu-core libegl1 libgl1 libgles2
+          sudo apt-get install -y --no-install-recommends blender ffmpeg fonts-dejavu-core libegl1 libgl1 libgles2
 
       - name: Install Python packages
         run: |
@@ -46,7 +44,7 @@ jobs:
           path: voices
           key: piper-en-us-lessac-medium-v1
 
-      - name: Download Piper voice model
+      - name: Download Piper voice
         shell: bash
         run: |
           set -euo pipefail
@@ -63,8 +61,7 @@ jobs:
             curl -fL --retry 3 --connect-timeout 20 "$BASE/en_US-lessac-medium.onnx.json" -o "$CONFIG"
           fi
 
-          test -s "$MODEL"
-          test -s "$CONFIG"
+          test -s "$MODEL" && test -s "$CONFIG"
           echo "PIPER_VOICE=$GITHUB_WORKSPACE/$MODEL" >> "$GITHUB_ENV"
           echo "PIPER_CONFIG=$GITHUB_WORKSPACE/$CONFIG" >> "$GITHUB_ENV"
 
@@ -73,17 +70,16 @@ jobs:
           blender --version | head -n 2
           ffmpeg -version | head -n 1
           command -v piper
-          test -s "$PIPER_VOICE"
-          test -s "$PIPER_CONFIG"
+          test -s "$PIPER_VOICE" && test -s "$PIPER_CONFIG"
 
-      - name: Generate animated episode
+      - name: Generate story episode
         run: python make_video.py
 
-      - name: Save video for preview
+      - name: Save video for review
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: dino-video-output
+          name: dino-storytime-output
           path: output/
           if-no-files-found: ignore
           retention-days: 7
